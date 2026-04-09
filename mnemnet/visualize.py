@@ -281,14 +281,13 @@ build(nodes, links);
 def _collect_triples() -> list[dict]:
     """Pull all triples from the KG, attach decay weights."""
     kg = KnowledgeGraph()
-    stats = kg.stats()
-    entities = stats.get("entities", []) if isinstance(stats, dict) else []
+    predicates = kg.stats().get("relationship_types", [])
 
     seen = set()
     triples = []
 
-    for entity in entities:
-        rows = kg.query_entity(entity) or []
+    for predicate in predicates:
+        rows = kg.query_relationship(predicate) or []
         for row in rows:
             key = (row.get("subject"), row.get("predicate"), row.get("object"))
             if key in seen:

@@ -107,12 +107,12 @@ def kg_add_smart(subject: str, predicate: str, obj: str) -> dict:
                 kg.add_triple(
                     subject=subject,
                     predicate=f"_tension_{predicate}",
-                    object=tension_desc,
+                    obj=tension_desc,
                     valid_from=today,
                 )
             tension = tension_desc
 
-    kg.add_triple(subject=subject, predicate=predicate, object=obj, valid_from=today)
+    kg.add_triple(subject=subject, predicate=predicate, obj=obj, valid_from=today)
     return {"added": True, "tension": tension}
 
 
@@ -137,7 +137,7 @@ def add_expectation(entity: str, prediction: str) -> None:
     kg.add_triple(
         subject=entity,
         predicate="_expectation",
-        object=prediction,
+        obj=prediction,
         valid_from=date.today().isoformat(),
     )
 
@@ -151,12 +151,12 @@ def add_surprise(entity: str, expected: str, actual: str) -> None:
     kg = _kg()
 
     surprise_desc = f"expected «{expected}» → got «{actual}»"
-    kg.add_triple(subject=entity, predicate="_surprise", object=surprise_desc, valid_from=today)
+    kg.add_triple(subject=entity, predicate="_surprise", obj=surprise_desc, valid_from=today)
 
     kg.add_triple(
         subject=f"surprise_{entity}_{today}",
         predicate="pulls_question",
-        object=f"why did {entity} do «{actual}» instead of «{expected}»?",
+        obj=f"why did {entity} do «{actual}» instead of «{expected}»?",
         valid_from=today,
     )
 

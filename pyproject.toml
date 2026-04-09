@@ -29,7 +29,7 @@ dev = ["pytest", "ruff"]
 
 [project.scripts]
 mnemnet-graph     = "mnemnet.visualize:main"
-mnemnet-collect   = "mnemnet.collector:run"
+mnemnet-collect   = "mnemnet.collector:main"
 
 [project.urls]
 Homepage   = "https://github.com/lininkgg/MnemNet"

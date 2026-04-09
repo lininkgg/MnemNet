@@ -173,7 +173,7 @@ Content:
         kg.add_triple(
             subject=f["subject"],
             predicate=f["predicate"],
-            object=f["object"],
+            obj=f["object"],
             valid_from=today,
         )
         print(f"  + {f['subject']} → {str(f['object'])[:60]}")
@@ -228,5 +228,9 @@ def run(api_key: str | None = None) -> None:
     print(f"\n  done. {total} fact(s) added.")
 
 
-if __name__ == "__main__":
+def main():
     run()
+
+
+if __name__ == "__main__":
+    main()
