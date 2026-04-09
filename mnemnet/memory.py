@@ -8,16 +8,39 @@ Three mechanisms on top of mempalace KG:
 """
 
 import math
+import sys
 from datetime import date
 
-from mempalace.knowledge_graph import KnowledgeGraph
+try:
+    from mempalace.knowledge_graph import KnowledgeGraph
+except ImportError:
+    print(
+        "Error: mempalace is not installed.\n"
+        "Install it with: pip install mempalace\n"
+        "Then initialize:  mempalace init",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
 
 from . import config as cfg
 
 
+class MempalaceNotInitializedError(Exception):
+    """Raised when mempalace palace has not been initialized."""
+    pass
+
+
 def _kg() -> KnowledgeGraph:
     """Return a KnowledgeGraph instance from the default palace."""
-    return KnowledgeGraph()
+    try:
+        return KnowledgeGraph()
+    except Exception as e:
+        if "no such table" in str(e).lower() or "database" in str(e).lower():
+            raise MempalaceNotInitializedError(
+                "mempalace is installed but not initialized.\n"
+                "Run: mempalace init"
+            ) from e
+        raise
 
 
 # ---------------------------------------------------------------------------
