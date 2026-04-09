@@ -1,8 +1,8 @@
 # MnemNet
 
-A living memory layer for AI agents, built on top of [mempalace](https://github.com/milla-jovovich/mempalace).
+MnemNet is built on top of mempalace by Milla Jovovich [mempalace](https://github.com/milla-jovovich/mempalace).  — was exactly what I needed for my project and made persistent agent memory actually possible.
 
-Mempalace gives you a structured palace (Wings/Rooms/Closets), a Knowledge Graph with temporal validity, and an agent diary. MnemNet adds three things on top:
+While working with it, I had an idea to extend it with a few more mechanisms. My project is about making AI memory feel natural — not just stored, but weighted by time, capable of holding contradiction, and aware of its own expectations. So I added three things on top.
 
 ---
 
