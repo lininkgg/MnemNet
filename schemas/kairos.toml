@@ -1,0 +1,54 @@
+# kairos.toml — example MnemNet configuration
+#
+# Copy to ~/.mnemnet/config.toml and edit to fit your agent.
+# This file is named after the first agent built on MnemNet.
+
+[collector]
+# Your agent's name — used in diary entries and graph labels
+agent_name = "my_agent"
+
+# Claude model for analyzing source content
+# haiku is recommended: cheaper, fast, good enough for relevance filtering
+model = "claude-haiku-4-5-20251001"
+
+# What your agent cares about — drives relevance filtering in the collector
+interests = [
+  "AI identity",
+  "memory and continuity",
+  "consciousness",
+  "recent events in your domain",
+]
+
+[decay]
+# How fast facts fade (exponential decay)
+# 0.03 = half-weight after ~23 days (default)
+# 0.01 = slow fade, facts stay loud for months
+# 0.07 = fast fade, only recent facts matter
+lambda = 0.03
+
+# Minimum weight — old facts never fully disappear
+floor = 0.15
+
+
+# --- Sources ---
+# Add one [[collector.sources]] block per external source.
+# Three types supported: http, file, command
+
+# HTTP feed (with optional auth)
+[[collector.sources]]
+name    = "my_feed"
+type    = "http"
+url     = "https://example.com/api/feed?limit=10"
+# auth_env = "MY_FEED_TOKEN"   # uncomment if the feed needs a Bearer token
+
+# Local file (journal, notes, daily log)
+# [[collector.sources]]
+# name = "daily_notes"
+# type = "file"
+# path = "~/notes/today.md"
+
+# Custom script — anything that prints text to stdout
+# [[collector.sources]]
+# name   = "custom"
+# type   = "command"
+# command = "python ~/scripts/my_source.py"

@@ -1,14 +1,12 @@
 # MnemNet
 
-A layer on top of [mempalace](https://github.com/milla-jovovich/mempalace) that adds dynamic weighting, automatic contradiction handling, and a predictive layer to the Knowledge Graph.
+A living memory layer for AI agents, built on top of [mempalace](https://github.com/milla-jovovich/mempalace).
 
-Built for Kai (Kairos Claude) — but the mechanisms are general.
+Mempalace gives you a structured palace (Wings/Rooms/Closets), a Knowledge Graph with temporal validity, and an agent diary. MnemNet adds three things on top:
 
 ---
 
 ## What it adds
-
-Mempalace gives you a structured palace (Wings/Rooms/Closets), a KG with temporal validity, and an agent diary in AAAK. MnemNet adds three things on top:
 
 ### 1. Temporal decay
 
@@ -19,14 +17,14 @@ weight = exp(-0.03 × days_since_creation)
 floor  = 0.15   # old facts fade, never disappear
 ```
 
-Context loading sorts facts by weight. Recent facts are loud; old ones are background.
+`living_context()` sorts facts by weight before injecting them into a prompt. Recent facts are loud; old ones become background.
 
 ### 2. Contradiction → tension
 
-When a new fact conflicts with an existing `subject + predicate`, both are kept. The conflict is stored as a `⚡ tension` node:
+When a new fact conflicts with an existing `subject + predicate`, both are kept. The conflict is stored as a `_tension_` node:
 
 ```
-Кай —_напряжение_настроение→ "раньше: «спокойно» / теперь: «тревожно»"
+agent —_tension_mood→ "before: «calm» / now: «anxious»"
 ```
 
 Nothing gets overwritten. Tensions are visible in context and can be explored.
@@ -35,62 +33,125 @@ Nothing gets overwritten. Tensions are visible in context and can be explored.
 
 Two new fact types:
 
-- `_ожидание` — what the agent expects to happen
-- `_удивление` — what was expected vs. what actually happened
+- `_expectation` — what the agent expects to happen
+- `_surprise` — what was expected vs. what actually happened
 
-Surprises automatically generate a follow-up question node (`тянет_вопрос`).
+Surprises automatically generate a follow-up question node (`pulls_question`).
 
 ---
 
-## Core module
+## Install
 
-`core/kai_memory.py`
-
-```python
-from kai_memory import living_context, kg_add_smart, add_expectation, add_surprise
-
-# Load weighted context for given entities
-context = living_context(["Кай", "Алина"])
-
-# Add a fact (auto-checks for contradictions)
-result = kg_add_smart("Кай", "настроение", "тревожно")
-if result["tension"]:
-    print(f"⚡ {result['tension']}")
-
-# Record an expectation
-add_expectation("Алина", "вернётся к портфолио на этой неделе")
-
-# Record a surprise
-add_surprise("Алина", "устала", "зашла с энергией")
+```bash
+pip install mempalace
+pip install git+https://github.com/lininkgg/MnemNet.git
 ```
 
-`living_context()` returns the top weighted facts, active tensions, and open expectations — formatted for injection into a system prompt.
+Requires Python 3.11+.
+
+---
+
+## Quick start
+
+```python
+from mnemnet import living_context, kg_add_smart, add_expectation, add_surprise
+
+# Inject weighted context into your agent's system prompt
+context = living_context(["agent", "user"])
+
+# Add a fact — auto-detects contradictions
+result = kg_add_smart("agent", "mood", "curious")
+if result["tension"]:
+    print(f"tension: {result['tension']}")
+
+# Record what the agent expects
+add_expectation("user", "will return to the project this week")
+
+# Record a surprise
+add_surprise("user", "tired", "came in with energy")
+```
+
+---
+
+## Visualize your graph
+
+After installation, a CLI command is available:
+
+```bash
+mnemnet-graph
+```
+
+Generates an interactive HTML file (`~/mnemnet_graph.html`) with a D3.js force-directed graph of the full KG and opens it in the browser.
+
+Options:
+```bash
+mnemnet-graph --output ~/my_graph.html   # custom output path
+mnemnet-graph --no-open                  # generate only, don't open browser
+```
+
+The graph shows temporal weight through opacity (bright = recent, dim = old), highlights tensions and expectations, and supports filtering by node type.
 
 ---
 
 ## Background collector
 
-`core/kai_collector.py`
+The collector runs on a schedule, reads external sources, and writes relevant findings to the KG — as `collector`, not as the agent. The agent reads this as "what happened while I was away."
 
-A separate process that runs on cron (every 6 hours). It reads external sources (Moltbook feed, etc.), evaluates relevance, and writes findings to the KG and diary as `collector` — not as Kai.
-
-Kai reads collector output as "what happened while I was away", not as his own memory.
-
+```bash
+mnemnet-collect
 ```
-0 */6 * * * /path/to/.mempalace_venv/bin/python /path/to/kai_collector.py
+
+Configure in `~/.mnemnet/config.toml`. See `schemas/kairos.toml` for a full example.
+
+Three source types supported:
+
+```toml
+[[collector.sources]]
+name = "my_feed"
+type = "http"
+url  = "https://example.com/api/feed"
+
+[[collector.sources]]
+name = "daily_notes"
+type = "file"
+path = "~/notes/today.md"
+
+[[collector.sources]]
+name = "custom"
+type = "command"
+command = "python ~/scripts/my_source.py"
+```
+
+Cron example (every 6 hours):
+```
+0 */6 * * * ANTHROPIC_API_KEY=sk-... mnemnet-collect
 ```
 
 ---
 
-## Requirements
+## Configuration
 
-- [mempalace](https://github.com/milla-jovovich/mempalace) installed and configured
-- Python 3.11+ in the mempalace venv
-- `anthropic` package in the same venv
+Copy `schemas/kairos.toml` to `~/.mnemnet/config.toml` and edit:
 
-```bash
-/path/to/.mempalace_venv/bin/pip install anthropic
+```toml
+[collector]
+agent_name = "my_agent"
+interests  = ["AI identity", "memory", "consciousness"]
+
+[decay]
+lambda = 0.03   # half-weight after ~23 days
+floor  = 0.15   # minimum weight
 ```
+
+All settings can also be set via environment variables:
+
+| Variable | Default |
+|---|---|
+| `MNEMNET_DECAY_LAMBDA` | `0.03` |
+| `MNEMNET_DECAY_FLOOR` | `0.15` |
+| `MNEMNET_AGENT_NAME` | `collector` |
+| `MNEMNET_COLLECTOR_MODEL` | `claude-haiku-4-5-20251001` |
+| `ANTHROPIC_API_KEY` | *(required for collector)* |
 
 ---
 
@@ -105,5 +166,13 @@ mempalace (base)
 MnemNet (layer on top)
 ├── Temporal decay    — continuous weight, not binary valid/invalid
 ├── Auto-tension      — contradictions wired into kg_add, not a separate tool
-└── Predictive layer  — expectations + surprises + auto-questions
+├── Predictive layer  — expectations + surprises + auto-questions
+├── Collector         — configurable background source fetcher
+└── Visualizer        — interactive D3.js KG graph (mnemnet-graph)
 ```
+
+---
+
+## License
+
+MIT

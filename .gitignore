@@ -1,7 +1,40 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
-.env
-config.env
-*.log
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Distribution
+*.whl
+
+# Editor / OS
 .DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Generated graphs
+mnemnet_graph.html
+*_graph.html
+
+# Credentials / tokens — never commit these
+*credentials*
+*token*
+*.env
+config.env
+.env
+kairos_credentials.txt
