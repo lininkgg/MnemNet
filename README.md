@@ -2,11 +2,11 @@
 
 **MnemNet** is built on top of [mempalace](https://github.com/milla-jovovich/mempalace) by Milla Jovovich — mempalace was exactly what I needed for my project and made persistent agent memory actually possible.
 
-While working with it, I had an idea to extend it with a few more mechanisms. My project is about making AI memory feel natural — not just stored, but weighted by time, capable of holding contradiction, and aware of its own expectations. So I added three things on top.
+While working with it, I had an idea to extend it with a few more mechanisms. My project is about making AI memory feel natural — not just stored, but weighted by time, capable of holding contradiction, and aware of its own expectations. So I added four things on top.
 
 ---
 
-Mempalace gives you a structured palace (Wings/Rooms/Closets), a Knowledge Graph with temporal validity, and an agent diary. MnemNet adds three things on top:
+Mempalace gives you a structured palace (Wings/Rooms/Closets), a Knowledge Graph with temporal validity, and an agent diary. MnemNet adds four things on top:
 
 ---
 
@@ -23,7 +23,40 @@ floor  = 0.15   # old facts fade, never disappear
 
 `living_context()` sorts facts by weight before injecting them into a prompt. Recent facts are loud; old ones become background.
 
-### 2. Contradiction → tension
+### 2. Temperature
+
+Not all memories are equal. Temperature controls how fast a fact decays — important memories last longer, fleeting ones fade faster.
+
+```
+weight = exp(-0.03 / temperature × days)
+```
+
+```python
+# core memory — barely decays
+kg_add_smart("agent", "event", "something defining happened", temperature=5.0)
+
+# normal fact — standard decay
+kg_add_smart("agent", "mood", "curious")
+
+# fleeting impression — fades fast
+kg_add_smart("agent", "note", "seemed tired today", temperature=0.5)
+```
+
+Temperature is also assigned automatically when not specified:
+- Fact caused a contradiction → `2.0`
+- Surprise node → `2.5`
+- Expectation → `1.5`
+- Anything else → `1.0`
+
+| temperature | meaning |
+|---|---|
+| 0.5 | fleeting |
+| 1.0 | normal (default) |
+| 2.0 | notable |
+| 3.0 | significant |
+| 5.0 | core memory |
+
+### 3. Contradiction → tension
 
 When a new fact conflicts with an existing `subject + predicate`, both are kept. The conflict is stored as a `_tension_` node:
 
@@ -33,7 +66,7 @@ agent —_tension_mood→ "before: «calm» / now: «anxious»"
 
 Nothing gets overwritten. Tensions are visible in context and can be explored.
 
-### 3. Predictive layer
+### 4. Predictive layer
 
 Two new fact types:
 
