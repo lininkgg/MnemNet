@@ -31,6 +31,8 @@ from .memory import (
     add_expectation,
     add_surprise,
     get_expectations,
+    set_note,
+    get_note,
 )
 
 __all__ = [
@@ -42,6 +44,8 @@ __all__ = [
     "add_expectation",
     "add_surprise",
     "get_expectations",
+    "set_note",
+    "get_note",
 ]
 
 __version__ = "0.1.0"

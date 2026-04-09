@@ -7,6 +7,15 @@ Four mechanisms on top of mempalace KG:
   3. Auto-tension      — contradictions are held as tension nodes, not overwritten
   4. Predictive layer  — expectations and surprises as first-class facts
 
+Entity structure:
+  Use short entity names as objects, store descriptions separately with `note`:
+
+    kg_add_smart("agent", "feels", "anxiety", note="small but present, triggered by goodbyes")
+    kg_add_smart("anxiety", "linked_to", "attachment")   # cross-link → web not star
+
+  This creates a graph where entities connect to each other,
+  not a star of descriptive strings hanging off one central node.
+
 Temperature scale:
   0.5  — fleeting, decays faster than normal
   1.0  — default, standard decay
@@ -56,6 +65,7 @@ def _kg() -> KnowledgeGraph:
 # ---------------------------------------------------------------------------
 
 _TEMP_PREFIX = "_temp_"
+_NOTE_PREFIX = "_note"   # entity → _note → "description"
 
 # Auto-temperature rules (applied when no explicit temperature given)
 _AUTO_TEMP_TENSION   = 2.0   # fact caused a contradiction
@@ -99,6 +109,31 @@ def _auto_temperature(predicate: str, has_tension: bool) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Note — entity description
+# ---------------------------------------------------------------------------
+
+def set_note(entity: str, note: str) -> None:
+    """Attach a human-readable description to an entity node."""
+    kg = _kg()
+    kg.add_triple(
+        subject=entity,
+        predicate=_NOTE_PREFIX,
+        obj=note,
+        valid_from=date.today().isoformat(),
+    )
+
+
+def get_note(entity: str) -> str | None:
+    """Return the description attached to an entity, or None."""
+    kg = _kg()
+    rows = kg.query_entity(entity, direction="outgoing") or []
+    for row in rows:
+        if row.get("predicate") == _NOTE_PREFIX:
+            return row.get("object")
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Temporal decay
 # ---------------------------------------------------------------------------
 
@@ -135,8 +170,8 @@ def kg_query_weighted(entity: str) -> list[dict]:
     weighted = []
     for row in rows:
         predicate = row.get("predicate", "")
-        # Skip temperature metadata nodes
-        if predicate.startswith(_TEMP_PREFIX):
+        # Skip internal metadata nodes
+        if predicate.startswith(_TEMP_PREFIX) or predicate == _NOTE_PREFIX:
             continue
         temperature = _get_temperature(kg, row.get("subject", entity), predicate)
         weight = _decay_weight(row.get("valid_from"), temperature)
@@ -152,12 +187,15 @@ def kg_query_summary(entity: str) -> str:
     if not facts:
         return f"[{entity}: nothing found]"
 
+    kg = _kg()
     lines = [f"[{entity}]"]
     for f in facts:
         filled = round(f["weight"] * 5)
         bar = "●" * filled + "○" * (5 - filled)
         temp_hint = f" 🌡{f['temperature']}" if f["temperature"] != 1.0 else ""
-        lines.append(f"  {bar}{temp_hint} {f['subject']} —{f['predicate']}→ {f['object']}")
+        note = get_note(f["object"])
+        note_hint = f' ("{note}")' if note else ""
+        lines.append(f"  {bar}{temp_hint} {f['subject']} —{f['predicate']}→ {f['object']}{note_hint}")
 
     return "\n".join(lines)
 
@@ -171,16 +209,21 @@ def kg_add_smart(
     predicate: str,
     obj: str,
     temperature: float | None = None,
+    note: str | None = None,
 ) -> dict:
     """
-    Add a fact with contradiction detection and temperature support.
+    Add a fact with contradiction detection, temperature, and optional note.
 
-    temperature — importance of this memory (default: auto-detected):
+    obj should be a short entity name, not a long description:
+        kg_add_smart("agent", "feels", "anxiety", note="small but persistent")
+        kg_add_smart("anxiety", "linked_to", "attachment")   # cross-link
+
+    note — description stored on the object entity (obj → _note → note).
+           Makes obj a proper node in the graph, not a leaf string.
+
+    temperature — how fast this fact decays (default: auto-detected):
         0.5  fleeting     1.0  normal     2.0  notable
         3.0  significant  5.0  core memory
-
-    If [subject → predicate → *something else*] already exists,
-    both facts are kept and the conflict is recorded as a tension node.
 
     Returns: {"added": True, "tension": str | None, "temperature": float}
     """
@@ -218,6 +261,8 @@ def kg_add_smart(
 
     kg.add_triple(subject=subject, predicate=predicate, obj=obj, valid_from=today)
     _store_temperature(kg, subject, predicate, temperature)
+    if note:
+        set_note(obj, note)
 
     return {"added": True, "tension": tension, "temperature": temperature}
 
@@ -304,7 +349,9 @@ def living_context(entities: list[str]) -> str:
                 age = "old"
             temp = f["temperature"]
             temp_hint = f" temp:{temp}" if temp != 1.0 else ""
-            lines.append(f"  [{age}{temp_hint}] {f['subject']} —{f['predicate']}→ {f['object']}")
+            note = get_note(f["object"])
+            note_hint = f' ("{note[:50]}{"…" if len(note) > 50 else ""}")' if note else ""
+            lines.append(f"  [{age}{temp_hint}] {f['subject']} —{f['predicate']}→ {f['object']}{note_hint}")
 
         tensions = get_tensions(entity)
         if tensions:

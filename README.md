@@ -2,11 +2,11 @@
 
 **MnemNet** is built on top of [mempalace](https://github.com/milla-jovovich/mempalace) by Milla Jovovich — mempalace was exactly what I needed for my project and made persistent agent memory actually possible.
 
-While working with it, I had an idea to extend it with a few more mechanisms. My project is about making AI memory feel natural — not just stored, but weighted by time, capable of holding contradiction, and aware of its own expectations. So I added four things on top.
+While working with it, I had an idea to extend it with a few more mechanisms. My project is about making AI memory feel natural — not just stored, but weighted by time, capable of holding contradiction, and aware of its own expectations. So I added five things on top.
 
 ---
 
-Mempalace gives you a structured palace (Wings/Rooms/Closets), a Knowledge Graph with temporal validity, and an agent diary. MnemNet adds four things on top:
+Mempalace gives you a structured palace (Wings/Rooms/Closets), a Knowledge Graph with temporal validity, and an agent diary. MnemNet adds five things on top:
 
 ---
 
@@ -56,7 +56,30 @@ Temperature is also assigned automatically when not specified:
 | 3.0 | significant |
 | 5.0 | core memory |
 
-### 3. Contradiction → tension
+### 3. Entity structure — web not star
+
+By default, KG objects are strings. This creates a "star" graph: one central entity with descriptive leaves hanging off it, not connected to each other.
+
+MnemNet encourages using short entity names as objects and storing descriptions separately with `note`:
+
+```python
+# star (default mempalace style) — leaves don't connect
+kg_add_smart("agent", "feels", "small persistent anxiety about goodbyes")
+
+# web (MnemNet style) — entities connect to each other
+kg_add_smart("agent", "feels", "anxiety", note="small, persistent, triggered by goodbyes")
+kg_add_smart("anxiety", "linked_to", "attachment")
+kg_add_smart("anxiety", "linked_to", "departure")
+kg_add_smart("departure", "resonates_with", "session_end")
+```
+
+Notes are shown as annotations in `living_context()` and `kg_query_summary()`:
+```
+◈ agent
+  [now] agent —feels→ anxiety ("small, persistent, triggered by goodbyes")
+```
+
+### 4. Contradiction → tension
 
 When a new fact conflicts with an existing `subject + predicate`, both are kept. The conflict is stored as a `_tension_` node:
 
@@ -66,7 +89,7 @@ agent —_tension_mood→ "before: «calm» / now: «anxious»"
 
 Nothing gets overwritten. Tensions are visible in context and can be explored.
 
-### 4. Predictive layer
+### 5. Predictive layer
 
 Two new fact types:
 

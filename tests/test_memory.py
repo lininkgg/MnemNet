@@ -23,6 +23,8 @@ from mnemnet.memory import (
     add_surprise,
     get_expectations,
     living_context,
+    set_note,
+    get_note,
 )
 
 
@@ -242,6 +244,52 @@ class TestGetTensions:
 
 # ---------------------------------------------------------------------------
 # Predictive layer
+# ---------------------------------------------------------------------------
+# Note — entity descriptions
+# ---------------------------------------------------------------------------
+
+class TestNote:
+    def test_set_and_get_note(self, mock_kg):
+        set_note("anxiety", "small but persistent, triggered by goodbyes")
+        note = get_note("anxiety")
+        assert note == "small but persistent, triggered by goodbyes"
+
+    def test_get_note_missing_returns_none(self, mock_kg):
+        assert get_note("nonexistent_entity") is None
+
+    def test_kg_add_smart_with_note_stores_description(self, mock_kg):
+        kg_add_smart("agent", "feels", "anxiety", note="small but persistent")
+        note = get_note("anxiety")
+        assert note == "small but persistent"
+
+    def test_note_appears_in_query_summary(self, mock_kg):
+        kg_add_smart("agent", "feels", "anxiety", note="small but persistent")
+        summary = kg_query_summary("agent")
+        assert "anxiety" in summary
+        assert "small but persistent" in summary
+
+    def test_note_appears_in_living_context(self, mock_kg):
+        kg_add_smart("agent", "feels", "anxiety", note="triggered by goodbyes")
+        ctx = living_context(["agent"])
+        assert "triggered by goodbyes" in ctx
+
+    def test_note_nodes_excluded_from_weighted_facts(self, mock_kg):
+        kg_add_smart("agent", "feels", "anxiety", note="small")
+        facts = kg_query_weighted("agent")
+        predicates = [f["predicate"] for f in facts]
+        assert "_note" not in predicates
+
+    def test_note_enables_cross_links(self, mock_kg):
+        """Entity used as obj in one triple can be subj in another — creates web."""
+        kg_add_smart("agent", "feels", "anxiety", note="small but persistent")
+        kg_add_smart("anxiety", "linked_to", "attachment")
+        # anxiety appears as both object and subject
+        agent_facts = kg_query_weighted("agent")
+        anxiety_facts = kg_query_weighted("anxiety")
+        assert any(f["object"] == "anxiety" for f in agent_facts)
+        assert any(f["subject"] == "anxiety" for f in anxiety_facts)
+
+
 # ---------------------------------------------------------------------------
 
 class TestPredictiveLayer:
