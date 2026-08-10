@@ -9,10 +9,15 @@ from unittest.mock import patch
 
 class TestDecayConfig:
     def test_defaults(self):
-        from mnemnet.config import DecayConfig
-        cfg = DecayConfig()
-        assert cfg.lam == 0.03
-        assert cfg.floor == 0.15
+        # Isolated from the user's live ~/.mnemnet/config.toml so the suite is
+        # deterministic regardless of local settings.
+        import mnemnet.config as c
+        for var in ("MNEMNET_DECAY_LAMBDA", "MNEMNET_DECAY_FLOOR"):
+            os.environ.pop(var, None)
+        with patch.object(c, "_toml", {}):
+            cfg = c.DecayConfig()
+            assert cfg.lam == 0.004   # slowed from 0.03 → ~5.7-month half-life
+            assert cfg.floor == 0.2
 
     def test_env_override(self):
         with patch.dict(os.environ, {"MNEMNET_DECAY_LAMBDA": "0.05", "MNEMNET_DECAY_FLOOR": "0.2"}):
@@ -26,11 +31,15 @@ class TestDecayConfig:
 
 class TestCollectorConfig:
     def test_defaults(self):
-        from mnemnet.config import CollectorConfig
-        cfg = CollectorConfig()
-        assert cfg.model == "claude-haiku-4-5-20251001"
-        assert cfg.agent_name == "collector"
-        assert cfg.max_tokens == 1024
+        # Isolated from the user's live ~/.mnemnet/config.toml.
+        import mnemnet.config as c
+        for var in ("MNEMNET_AGENT_NAME", "MNEMNET_COLLECTOR_MODEL", "MNEMNET_COLLECTOR_MAX_TOKENS"):
+            os.environ.pop(var, None)
+        with patch.object(c, "_toml", {}):
+            cfg = c.CollectorConfig()
+            assert cfg.model == "claude-haiku-4-5-20251001"
+            assert cfg.agent_name == "collector"
+            assert cfg.max_tokens == 1024
 
     def test_env_override_agent_name(self):
         with patch.dict(os.environ, {"MNEMNET_AGENT_NAME": "kairos"}):

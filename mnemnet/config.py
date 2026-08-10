@@ -41,12 +41,42 @@ def _get(section: str, key: str, env_var: str, default):
 
 @dataclass
 class DecayConfig:
+    # lambda controls how fast facts fade. Half-weight after ln(2)/lambda days.
+    #   0.03   → ~23 days   (old default — far too fast for a companion's memory)
+    #   0.004  → ~173 days  (~5.7 months — current default for relational memory)
+    # Temperature divides lambda, so core memories (temp 5.0) keep a ~2.4-year
+    # half-life. Tune via [decay] lambda in config.toml or MNEMNET_DECAY_LAMBDA.
     lam: float = field(default_factory=lambda: float(
-        _get("decay", "lambda", "MNEMNET_DECAY_LAMBDA", 0.03)
+        _get("decay", "lambda", "MNEMNET_DECAY_LAMBDA", 0.004)
     ))
     floor: float = field(default_factory=lambda: float(
-        _get("decay", "floor", "MNEMNET_DECAY_FLOOR", 0.15)
+        _get("decay", "floor", "MNEMNET_DECAY_FLOOR", 0.2)
     ))
+
+
+# Predicates whose object is single-valued — a new value genuinely supersedes
+# the old one, so a conflict is a real contradiction worth holding as tension.
+# Everything NOT in this set is treated as multi-valued (values coexist; e.g.
+# you can know many people, read many diaries, link one idea to several others),
+# so it never fires a false tension.
+_DEFAULT_SINGLE_VALUED = [
+    "mood", "status", "state", "location", "lives_in", "currently",
+    "age", "health", "current_focus", "focus", "relationship_status",
+    "job", "role", "current_mood",
+]
+
+
+@dataclass
+class TensionConfig:
+    single_valued: set = field(default_factory=lambda: {
+        p.strip().lower()
+        for p in (
+            os.environ.get("MNEMNET_SINGLE_VALUED", "").split(",")
+            if os.environ.get("MNEMNET_SINGLE_VALUED")
+            else _toml.get("tension", {}).get("single_valued", _DEFAULT_SINGLE_VALUED)
+        )
+        if p and str(p).strip()
+    })
 
 
 @dataclass
@@ -67,3 +97,4 @@ class CollectorConfig:
 
 decay = DecayConfig()
 collector = CollectorConfig()
+tension = TensionConfig()

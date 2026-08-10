@@ -41,9 +41,12 @@ class TestDecayWeight:
         assert _decay_weight(today) == 1.0
 
     def test_old_date_reaches_floor(self):
-        old = (date.today() - timedelta(days=365)).isoformat()
+        from mnemnet import config
+        # With slower decay, facts take much longer to fade — use a clearly
+        # ancient date and compare to the configured floor.
+        old = (date.today() - timedelta(days=2000)).isoformat()
         w = _decay_weight(old)
-        assert w == 0.15  # floor
+        assert w == config.decay.floor
 
     def test_recent_date_between_floor_and_one(self):
         recent = (date.today() - timedelta(days=10)).isoformat()
@@ -224,6 +227,20 @@ class TestKgAddSmart:
         mood_facts = [t for t in mock_kg._store if t["predicate"] == "mood"]
         assert len(mood_facts) == 2
 
+    def test_multivalued_predicate_no_tension(self, mock_kg):
+        """Multi-valued predicates coexist — no false contradiction."""
+        kg_add_smart("ember", "read_diary_of", "Tres")
+        result = kg_add_smart("ember", "read_diary_of", "sonnet-claude")
+        assert result["tension"] is None
+        tension_nodes = [t for t in mock_kg._store if "_tension_" in t["predicate"]]
+        assert len(tension_nodes) == 0
+
+    def test_singlevalued_predicate_still_tensions(self, mock_kg):
+        """Single-valued predicates (e.g. mood) still flag real contradictions."""
+        kg_add_smart("agent", "mood", "calm")
+        result = kg_add_smart("agent", "mood", "anxious")
+        assert result["tension"] is not None
+
 
 # ---------------------------------------------------------------------------
 # get_tensions
@@ -349,6 +366,19 @@ class TestKgQueryWeighted:
         kg_add_smart("agent", "mood", "happy")
         facts = kg_query_weighted("agent")
         assert facts[0]["weight"] >= facts[-1]["weight"]
+
+    def test_invalidated_facts_excluded(self, mock_kg):
+        """Facts marked current=False (invalidated) must not appear."""
+        kg_add_smart("agent", "mood", "happy")
+        mock_kg._store.append({
+            "direction": "outgoing", "subject": "agent",
+            "predicate": "mood", "object": "obsolete",
+            "valid_from": "2020-01-01", "valid_to": "2021-01-01",
+            "confidence": 1.0, "source_closet": None, "current": False,
+        })
+        objs = [f["object"] for f in kg_query_weighted("agent")]
+        assert "obsolete" not in objs
+        assert "happy" in objs
 
     def test_hot_fact_outweighs_cold_fact_of_same_age(self, mock_kg):
         old_date = (date.today() - timedelta(days=20)).isoformat()

@@ -5,6 +5,8 @@ Four mechanisms on top of mempalace KG:
   1. Temporal decay    — recent facts are louder, old ones fade to background
   2. Temperature       — important memories decay slower; trivial ones faster
   3. Auto-tension      — contradictions are held as tension nodes, not overwritten
+                         (only for single-valued predicates; multi-valued ones
+                         like knows / read_diary_of / linked_to coexist)
   4. Predictive layer  — expectations and surprises as first-class facts
 
 Entity structure:
@@ -173,6 +175,9 @@ def kg_query_weighted(entity: str) -> list[dict]:
         # Skip internal metadata nodes
         if predicate.startswith(_TEMP_PREFIX) or predicate == _NOTE_PREFIX:
             continue
+        # Skip invalidated / superseded facts — they are no longer true
+        if not row.get("current", True):
+            continue
         temperature = _get_temperature(kg, row.get("subject", entity), predicate)
         weight = _decay_weight(row.get("valid_from"), temperature)
         weighted.append({**row, "weight": round(weight, 3), "temperature": temperature})
@@ -230,26 +235,29 @@ def kg_add_smart(
     today = date.today().isoformat()
     kg = _kg()
 
-    existing = kg.query_entity(subject, direction="outgoing") or []
     tension = None
 
-    conflicts = [
-        f for f in existing
-        if f.get("predicate") == predicate
-        and f.get("object", "").lower() != obj.lower()
-        and f.get("current", True)
-    ]
+    # Only single-valued predicates can contradict. Multi-valued ones
+    # (knows, read_diary_of, linked_to, …) coexist — no false tension.
+    if _is_single_valued(predicate):
+        existing = kg.query_entity(subject, direction="outgoing") or []
+        conflicts = [
+            f for f in existing
+            if f.get("predicate") == predicate
+            and f.get("object", "").lower() != obj.lower()
+            and f.get("current", True)
+        ]
 
-    if conflicts:
-        for c in conflicts:
-            tension_desc = f"before: «{c['object']}» / now: «{obj}»"
-            kg.add_triple(
-                subject=subject,
-                predicate=f"_tension_{predicate}",
-                obj=tension_desc,
-                valid_from=today,
-            )
-        tension = tension_desc
+        if conflicts:
+            for c in conflicts:
+                tension_desc = f"before: «{c['object']}» / now: «{obj}»"
+                kg.add_triple(
+                    subject=subject,
+                    predicate=f"_tension_{predicate}",
+                    obj=tension_desc,
+                    valid_from=today,
+                )
+            tension = tension_desc
 
     # Resolve temperature
     has_tension = tension is not None
@@ -267,6 +275,15 @@ def kg_add_smart(
     return {"added": True, "tension": tension, "temperature": temperature}
 
 
+def _is_single_valued(predicate: str) -> bool:
+    """
+    True if this predicate holds at most one current value, so a conflicting
+    new value is a real contradiction (→ tension). Multi-valued predicates
+    (knows, read_diary_of, linked_to, …) coexist and never fire tension.
+    """
+    return predicate.strip().lower() in cfg.tension.single_valued
+
+
 def get_tensions(entity: str) -> list[str]:
     """Return all open tensions for an entity."""
     kg = _kg()
@@ -275,6 +292,7 @@ def get_tensions(entity: str) -> list[str]:
         f"{r['predicate'].replace('_tension_', '')}: {r['object']}"
         for r in rows
         if "_tension_" in r.get("predicate", "")
+        and r.get("current", True)   # hide resolved / invalidated tensions
     ]
 
 

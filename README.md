@@ -17,9 +17,13 @@ Mempalace gives you a structured palace (Wings/Rooms/Closets), a Knowledge Graph
 Facts are weighted by age using exponential decay:
 
 ```
-weight = exp(-0.03 × days_since_creation)
-floor  = 0.15   # old facts fade, never disappear
+weight = exp(-0.004 × days_since_creation)
+floor  = 0.2     # old facts fade, never disappear
 ```
+
+`lambda = 0.004` gives a half-weight of ~173 days (~5.7 months). The earlier default of
+`0.03` (~23 days) turned out far too fast for a companion's memory — last month's
+conversations went quiet before they stopped mattering.
 
 `living_context()` sorts facts by weight before injecting them into a prompt. Recent facts are loud; old ones become background.
 
@@ -28,7 +32,7 @@ floor  = 0.15   # old facts fade, never disappear
 Not all memories are equal. Temperature controls how fast a fact decays — important memories last longer, fleeting ones fade faster.
 
 ```
-weight = exp(-0.03 / temperature × days)
+weight = exp(-0.004 / temperature × days)
 ```
 
 ```python
@@ -88,6 +92,30 @@ agent —_tension_mood→ "before: «calm» / now: «anxious»"
 ```
 
 Nothing gets overwritten. Tensions are visible in context and can be explored.
+
+**Only single-valued predicates can contradict.** A person has one mood at a time, so a new
+mood supersedes the old one — that's a real contradiction. But you can know many people and
+link one idea to several others, so `knows` and `linked_to` never fire a tension:
+
+```python
+kg_add_smart("agent", "knows", "Leon")
+kg_add_smart("agent", "knows", "Alina")   # no tension — both are true
+
+kg_add_smart("agent", "mood", "calm")
+kg_add_smart("agent", "mood", "anxious")  # tension — a mood is single-valued
+```
+
+Everything not listed as single-valued is treated as multi-valued. The default list is
+`mood, status, state, location, lives_in, currently, age, health, current_focus, focus,
+relationship_status, job, role, current_mood` — override it in `config.toml`:
+
+```toml
+[tension]
+single_valued = ["mood", "location", "current_project"]
+```
+
+Invalidated facts (`current = False`) are excluded from `living_context()` and from
+`get_tensions()` — a resolved tension stops being shown.
 
 ### 5. Predictive layer
 
@@ -199,16 +227,20 @@ agent_name = "my_agent"
 interests  = ["AI identity", "memory", "consciousness"]
 
 [decay]
-lambda = 0.03   # half-weight after ~23 days
-floor  = 0.15   # minimum weight
+lambda = 0.004  # half-weight after ~173 days
+floor  = 0.2    # minimum weight
+
+[tension]
+single_valued = ["mood", "location", "current_project"]
 ```
 
 All settings can also be set via environment variables:
 
 | Variable | Default |
 |---|---|
-| `MNEMNET_DECAY_LAMBDA` | `0.03` |
-| `MNEMNET_DECAY_FLOOR` | `0.15` |
+| `MNEMNET_DECAY_LAMBDA` | `0.004` |
+| `MNEMNET_DECAY_FLOOR` | `0.2` |
+| `MNEMNET_SINGLE_VALUED` | *(comma-separated; see Contradiction → tension)* |
 | `MNEMNET_AGENT_NAME` | `collector` |
 | `MNEMNET_COLLECTOR_MODEL` | `claude-haiku-4-5-20251001` |
 | `ANTHROPIC_API_KEY` | *(required for collector)* |
