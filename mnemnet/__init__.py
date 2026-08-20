@@ -24,6 +24,7 @@ Quick start:
 
 from .memory import (
     living_context,
+    cool,
     kg_add_smart,
     kg_query_weighted,
     kg_query_summary,
@@ -37,6 +38,7 @@ from .memory import (
 
 __all__ = [
     "living_context",
+    "cool",
     "kg_add_smart",
     "kg_query_weighted",
     "kg_query_summary",
@@ -48,4 +50,4 @@ __all__ = [
     "get_note",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

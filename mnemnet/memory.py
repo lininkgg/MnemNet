@@ -88,15 +88,24 @@ def _store_temperature(kg: KnowledgeGraph, subject: str, predicate: str, tempera
 
 
 def _get_temperature(kg: KnowledgeGraph, subject: str, predicate: str) -> float:
-    """Read stored temperature for a fact. Returns 1.0 if not set."""
+    """Read stored temperature for a fact. Returns 1.0 if not set.
+
+    Takes the newest still-current record. Cooling supersedes a temperature rather
+    than editing it, so several may exist for one fact — reading whichever came back
+    first would make cooling look like it had done nothing.
+    """
     rows = kg.query_entity(subject, direction="outgoing") or []
+    best, best_date = None, ""
     for row in rows:
-        if row.get("predicate") == f"{_TEMP_PREFIX}{predicate}":
+        if row.get("predicate") != f"{_TEMP_PREFIX}{predicate}" or not row.get("current", True):
+            continue
+        when = row.get("valid_from") or ""
+        if best is None or when >= best_date:
             try:
-                return float(row["object"])
+                best, best_date = float(row["object"]), when
             except (ValueError, KeyError):
                 pass
-    return 1.0
+    return 1.0 if best is None else best
 
 
 def _auto_temperature(predicate: str, has_tension: bool) -> float:
@@ -108,6 +117,75 @@ def _auto_temperature(predicate: str, has_tension: bool) -> float:
     if predicate == "_expectation":
         return _AUTO_TEMP_EXPECTATION
     return 1.0
+
+
+# ---------------------------------------------------------------------------
+# Cooling — importance that can go down
+# ---------------------------------------------------------------------------
+
+def cool(entities: list[str], factor: float | None = None, quiet_days: int | None = None) -> dict:
+    """Let importance fade the way age already does.
+
+    Temperature is set by the agent and nothing lowers it, so each new "this matters"
+    is chosen relative to the last one and the scale ratchets upward. Observed in a
+    running agent after two months: 52% of its facts sat above 5.0 — the documented
+    ceiling for a core memory — and the monthly average had gone 6.2 → 8.6. When most
+    of memory is louder than "core", temperature has stopped telling anything apart.
+
+    This pulls each temperature toward 1.0 — `new = 1 + (old - 1) * factor` — so what
+    is furthest above normal comes down fastest, and nothing is pushed below its
+    resting value. Facts already at or below 1.0 are left alone: a memory deliberately
+    marked fleeting should not be warmed.
+
+    Re-warming needs no separate mechanism. Recording a fact again sets its temperature
+    again, so what the agent keeps returning to stays hot and the rest settles. Call
+    this from an offline pass — consolidation, or a dream.
+
+    quiet_days — only cool facts older than this, so something recorded today is not
+    cooled before it has had a chance to matter.
+
+    Returns {"cooled": n, "before": avg, "after": avg, "hottest": value}.
+    """
+    factor = cfg.cooling.factor if factor is None else factor
+    quiet_days = cfg.cooling.quiet_days if quiet_days is None else quiet_days
+    kg = _kg()
+    today = date.today().isoformat()
+    changed, before, after = 0, [], []
+    hottest = 0.0
+
+    for entity in entities:
+        rows = kg.query_entity(entity, direction="outgoing") or []
+        for row in rows:
+            pred = row.get("predicate", "")
+            if not pred.startswith(_TEMP_PREFIX) or not row.get("current", True):
+                continue
+            try:
+                old = float(row["object"])
+            except (ValueError, KeyError, TypeError):
+                continue
+            if quiet_days:
+                try:
+                    age = (date.today() - date.fromisoformat((row.get("valid_from") or today)[:10])).days
+                    if age < quiet_days:
+                        continue
+                except Exception:
+                    pass
+            hottest = max(hottest, old)
+            if old <= 1.0:
+                continue
+            new = round(1.0 + (old - 1.0) * factor, 2)
+            if abs(new - old) < 0.01:
+                continue
+            kg.invalidate(entity, pred, row["object"], ended=today)
+            kg.add_triple(subject=entity, predicate=pred, obj=str(new), valid_from=today)
+            before.append(old)
+            after.append(new)
+            changed += 1
+
+    return {"cooled": changed,
+            "before": round(sum(before) / len(before), 2) if before else 0.0,
+            "after": round(sum(after) / len(after), 2) if after else 0.0,
+            "hottest": hottest}
 
 
 # ---------------------------------------------------------------------------

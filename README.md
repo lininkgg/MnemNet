@@ -60,6 +60,37 @@ Temperature is also assigned automatically when not specified:
 | 3.0 | significant |
 | 5.0 | core memory |
 
+**Importance has to be able to go down.** Nothing lowered temperature, so each new
+"this matters" was chosen relative to the last one and the scale ratcheted upward. In a
+running agent after two months, **52% of its facts sat above 5.0** — the ceiling above —
+and the monthly average had gone 6.2 → 8.6. When most of memory is louder than core,
+temperature has stopped telling anything apart.
+
+`cool()` settles it. Call it from an offline pass — a nightly consolidation, or a dream:
+
+```python
+from mnemnet import cool
+
+cool(["agent", "user"])
+# {'cooled': 41, 'before': 7.8, 'after': 7.4, 'hottest': 9.6}
+```
+
+Each temperature is pulled toward 1.0 — `new = 1 + (old - 1) × factor` — so what is
+furthest above normal comes down fastest, and nothing is pushed below its resting value.
+Facts at or under 1.0 are left alone; a memory deliberately marked fleeting should not be
+warmed. Facts recorded in the last `quiet_days` are skipped, since something written today
+has not yet had a chance to matter.
+
+Re-warming needs no separate mechanism: recording a fact again sets its temperature again.
+What the agent keeps returning to stays hot, and the rest settles. Importance becomes
+two-sided, like decay — not a ratchet.
+
+```toml
+[cooling]
+factor     = 0.95   # at one pass a day: 9.5 drops under 5.0 in ~2 weeks, to 2.0 in ~6
+quiet_days = 2
+```
+
 ### 3. Entity structure — web not star
 
 By default, KG objects are strings. This creates a "star" graph: one central entity with descriptive leaves hanging off it, not connected to each other.
@@ -259,6 +290,8 @@ All settings can also be set via environment variables:
 |---|---|
 | `MNEMNET_DECAY_LAMBDA` | `0.004` |
 | `MNEMNET_DECAY_FLOOR` | `0.2` |
+| `MNEMNET_COOLING_FACTOR` | `0.95` |
+| `MNEMNET_COOLING_QUIET_DAYS` | `2` |
 | `MNEMNET_SINGLE_VALUED` | *(comma-separated; see Contradiction → tension)* |
 | `MNEMNET_AGENT_NAME` | `collector` |
 | `MNEMNET_COLLECTOR_MODEL` | `claude-haiku-4-5-20251001` |
@@ -276,6 +309,7 @@ mempalace (base)
 
 MnemNet (layer on top)
 ├── Temporal decay    — continuous weight, not binary valid/invalid
+├── Cooling          — importance settles when nothing revisits it
 ├── Auto-tension      — contradictions wired into kg_add, not a separate tool
 ├── Predictive layer  — expectations + surprises + auto-questions
 ├── Collector         — configurable background source fetcher

@@ -80,6 +80,25 @@ class TensionConfig:
 
 
 @dataclass
+class CoolingConfig:
+    # How fast importance settles when nothing revisits it. Applied by cool(), which
+    # belongs in an offline pass — a nightly consolidation or a dream.
+    #   0.90 → a 9.5 falls below 5.0 in ~7 passes, to 2.0 in ~20
+    #   0.95 → ~15 and ~42          (default: two weeks and six, at one pass a day)
+    #   0.97 → ~25 and ~70
+    # Chosen against the decay half-life: cooling should be comparable to forgetting,
+    # not faster than it.
+    factor: float = field(default_factory=lambda: float(
+        _get("cooling", "factor", "MNEMNET_COOLING_FACTOR", 0.95)
+    ))
+    # Leave the last few days alone — something recorded today has not yet had a
+    # chance to matter.
+    quiet_days: int = field(default_factory=lambda: int(
+        _get("cooling", "quiet_days", "MNEMNET_COOLING_QUIET_DAYS", 2)
+    ))
+
+
+@dataclass
 class CollectorConfig:
     model: str = field(default_factory=lambda:
         _get("collector", "model", "MNEMNET_COLLECTOR_MODEL", "claude-haiku-4-5-20251001")
@@ -96,5 +115,6 @@ class CollectorConfig:
 
 
 decay = DecayConfig()
+cooling = CoolingConfig()
 collector = CollectorConfig()
 tension = TensionConfig()

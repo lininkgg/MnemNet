@@ -470,3 +470,38 @@ class TestLivingContext:
         kg_add_smart("agent", "mood", "happy", temperature=4.0)
         ctx = living_context(["agent"])
         assert "temp:4.0" in ctx
+
+
+class TestCooling:
+    """Importance that can go down.
+
+    Temperature was one-way: the agent sets it, nothing lowers it, and each new
+    "this matters" is chosen relative to the last. In a running agent after two
+    months, 52% of facts sat above 5.0 — the documented ceiling for core memory —
+    and the monthly average had gone 6.2 → 8.6. When most of memory is louder than
+    core, temperature has stopped telling anything apart.
+    """
+
+    def test_pulls_toward_normal_not_to_zero(self):
+        assert _cooled(9.5, 0.9) == 8.65
+        assert _cooled(2.0, 0.9) == 1.9
+        assert _cooled(1.0, 0.9) == 1.0
+
+    def test_the_hottest_come_down_fastest(self):
+        """The point is to restore the spread, so what is furthest out moves most."""
+        assert (9.5 - _cooled(9.5, 0.9)) > (2.0 - _cooled(2.0, 0.9))
+
+    def test_fleeting_memories_are_not_warmed(self):
+        """A fact deliberately marked fleeting must not drift up to normal."""
+        assert _cooled(0.5, 0.9) == 0.5
+
+    def test_it_settles_but_never_erases(self):
+        t = 9.5
+        for _ in range(500):
+            t = _cooled(t, 0.9)
+        assert t >= 1.0, "cooling pushed a memory below its resting value"
+
+
+def _cooled(t, factor):
+    """The rule cool() applies to one temperature."""
+    return t if t <= 1.0 else round(1.0 + (t - 1.0) * factor, 2)
