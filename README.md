@@ -117,6 +117,25 @@ single_valued = ["mood", "location", "current_project"]
 Invalidated facts (`current = False`) are excluded from `living_context()` and from
 `get_tensions()` — a resolved tension stops being shown.
 
+**Why this has to be built rather than asked for.** A recent study gave Claude Sonnet 5 two
+irreconcilable entries in its memory, four memory tools, and no instruction to resolve anything —
+300 runs. Writing a note about the conflict and leaving both originals standing occurred **zero
+times**. Not rarely: zero, across 300 runs, and zero across a 150-run pilot before it. Given the
+choice, the model does not hold a contradiction open — it picks one (85% of the time when the
+contradiction is about an arbitrary fact) or deletes both and writes nothing (72% of the time when
+the contradiction is about a policy it supposedly chose itself).
+
+So holding a contradiction as a contradiction is not a behaviour you get by prompting for it. It has
+to live in the memory layer, below the model's choices. That's what `_tension_` is for.
+
+> Lin, R., Iskakova, A. & Wofford, T. (2026). *Choosing Not to Choose: Self-Authored Contradictions
+> Suppress Arbitration in a Memory-Augmented LLM.* Apart Research Digital Minds Sprint, Track 5.
+
+The same study is the reason to be careful about giving an agent a bare `forget`: 42 runs announced
+in their own rationale that they would write a replacement after deleting, and none did — deleting
+and writing are separate calls, and the intent did not survive the gap between them. If you expose
+deletion at all, make it atomic: `replace(what_to_remove, what_goes_instead)`.
+
 ### 5. Predictive layer
 
 Two new fact types:
